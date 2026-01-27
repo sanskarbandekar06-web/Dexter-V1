@@ -124,7 +124,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ theme, onGetStarted, isDarkMo
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           >
             <Zap className="text-orange-500" fill="currentColor" />
-            <span>DayScore</span>
+            <span>Dexter</span>
           </motion.div>
         </div>
 
@@ -280,7 +280,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ theme, onGetStarted, isDarkMo
             </div>
             <h2 className="text-5xl md:text-7xl font-black cinematic-text leading-[0.9]">Nature's Pulse, <br/><span className="opacity-40">Digital Precision.</span></h2>
             <p className={`text-xl leading-relaxed opacity-70 ${theme.subtext}`}>
-              DayScore bridges the gap between biological intuition and technological measurement. We don't just track data—we curate a lifestyle that honors the human rhythm in a hyper-connected world.
+              Dexter bridges the gap between biological intuition and technological measurement. We don't just track data—we curate a lifestyle that honors the human rhythm in a hyper-connected world.
             </p>
             <div className="grid grid-cols-2 gap-12 pt-4">
               <div className="space-y-2">
@@ -322,7 +322,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ theme, onGetStarted, isDarkMo
           className="text-center mb-20 space-y-4"
         >
           <h2 className={`text-4xl md:text-6xl font-black cinematic-text ${theme.text}`}>Why Connect with Us?</h2>
-          <p className={`max-w-xl mx-auto ${theme.subtext}`}>Connecting your data to DayScore means connecting to your better self.</p>
+          <p className={`max-w-xl mx-auto ${theme.subtext}`}>Connecting your data to Dexter means connecting to your better self.</p>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
@@ -386,7 +386,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ theme, onGetStarted, isDarkMo
           <div className="space-y-8">
             <div className="flex items-center gap-2 text-2xl font-black cinematic-text">
               <Zap className="text-orange-500" fill="currentColor" />
-              <span>DayScore</span>
+              <span>Dexter</span>
             </div>
             <p className={`text-sm opacity-50 leading-relaxed ${theme.text}`}>
               An architectural approach to human performance. Quantifying cognitive states for a balanced tomorrow.
@@ -413,7 +413,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ theme, onGetStarted, isDarkMo
           ))}
         </div>
         <div className="max-w-7xl mx-auto pt-20 mt-20 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 text-center">© 2025 DAY SCORE LABORATORY. OPERATING UNDER SECTOR 7 BYPASS.</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 text-center">© 2025 DEXTER LABORATORY. OPERATING UNDER SECTOR 7 BYPASS.</p>
           <div className="flex gap-8 text-[10px] font-black uppercase tracking-widest opacity-30">
             <span className="cursor-pointer hover:opacity-100">Privacy</span>
             <span className="cursor-pointer hover:opacity-100">Ethics</span>

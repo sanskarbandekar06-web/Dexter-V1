@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { LucideIcon, BedDouble, ChevronUp, ChevronDown, Maximize2, Minimize2, CheckCircle2, Circle } from 'lucide-react';
 import { motion, Variants, AnimatePresence } from 'framer-motion';
@@ -64,9 +65,9 @@ const MetricCard: React.FC<MetricCardProps> = ({
 
   const waveVariants: Variants = {
     animate: (i: number) => ({
-      x: [0, -40, 0],
+      x: ["0%", "-50%"],
       transition: {
-        duration: i === 1 ? 4 : 6,
+        duration: i === 1 ? 10 : 15,
         repeat: Infinity,
         ease: "linear" as const
       }
@@ -89,7 +90,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
     <motion.div 
       layout
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className={`${theme.card} relative overflow-hidden group hover:-translate-y-1 transition-all duration-300 flex flex-col ${isExpanded ? 'col-span-2 min-h-[400px] p-6' : 'h-full p-4 md:p-5'}`}
+      className={`${theme.card} relative overflow-hidden group transition-all duration-300 flex flex-col transform-gpu ${isExpanded ? 'col-span-2 min-h-[400px] p-6' : 'h-full p-4 md:p-5'}`}
       onClick={!isExpanded ? onToggleExpand : undefined}
     >
       {/* Background Reservoir Simulation */}
@@ -103,12 +104,13 @@ const MetricCard: React.FC<MetricCardProps> = ({
              transition={{ type: "spring", stiffness: 30, damping: 15 }}
              className={`w-full relative ${liquidColor}`}
            >
-             <div className="absolute bottom-full left-0 w-[200%] h-12 overflow-hidden">
-               <motion.svg viewBox="0 0 100 20" preserveAspectRatio="none" custom={1} variants={waveVariants} animate="animate" className={`absolute inset-0 w-full h-full opacity-80 fill-current ${col}`}>
-                 <path d="M0 10 Q 25 20 50 10 T 100 10 V 20 H 0 Z" />
+             {/* Using bottom-[calc(100%-1px)] to prevent sub-pixel rendering gaps/lines between wave and body */}
+             <div className="absolute bottom-[calc(100%-1px)] left-0 w-[200%] h-12 overflow-hidden">
+               <motion.svg viewBox="0 0 200 20" preserveAspectRatio="none" custom={1} variants={waveVariants} animate="animate" className={`absolute inset-0 w-full h-full opacity-80 fill-current ${col}`}>
+                 <path d="M0 10 Q 25 20 50 10 T 100 10 T 150 10 T 200 10 V 20 H 0 Z" />
                </motion.svg>
-               <motion.svg viewBox="0 0 100 20" preserveAspectRatio="none" custom={2} variants={waveVariants} animate="animate" className={`absolute inset-0 w-full h-full opacity-50 fill-current translate-y-1 ${secondaryLiquidColor}`}>
-                 <path d="M0 10 Q 25 0 50 10 T 100 10 V 20 H 0 Z" />
+               <motion.svg viewBox="0 0 200 20" preserveAspectRatio="none" custom={2} variants={waveVariants} animate="animate" className={`absolute inset-0 w-full h-full opacity-50 fill-current translate-y-1 ${secondaryLiquidColor}`}>
+                 <path d="M0 10 Q 25 0 50 10 T 100 10 T 150 10 T 200 10 V 20 H 0 Z" />
                </motion.svg>
              </div>
            </motion.div>
@@ -121,7 +123,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-xl ${bg} ${col} bg-opacity-20 shadow-sm backdrop-blur-md border border-white/10`}>
               {customIconType === 'academics' && <CustomBookIcon colorClass={col} />}
-              {customIconType === 'recovery' && <CustomBedIcon colorClass={col} />}
+              {customIconType === 'recovery' && <CustomBedIcon colorClass={isDarkMode ? 'text-white' : col} />}
               {customIconType === 'digital' && <CustomDigitalIcon colorClass={col} />}
               {customIconType === 'vitality' && Icon && <Icon size={20} className="anim-heart" />}
               {!customIconType && Icon && <Icon size={20} />}

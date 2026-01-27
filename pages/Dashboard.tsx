@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Activity, Zap, TrendingUp, Sparkles, Grid, LineChart as LineChartIcon, Loader2, Info } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
@@ -5,9 +6,9 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import MetricCard from '../components/MetricCard';
-import { ThemeColors, UserData, HistoryItem, Task, PillarType } from '../types';
+import { ThemeColors, UserData, HistoryItem, Task, PillarType, Course } from '../types';
 import { generateYearHistory } from '../constants';
-import { auth, db, collection, query, where, orderBy, limit, onSnapshot, setDoc, doc, serverTimestamp, getDocs } from '../lib/firebase';
+import { auth, db, collection, query, onSnapshot, setDoc, doc, serverTimestamp } from '../lib/firebase';
 import { startOfDay, format } from 'date-fns';
 
 interface DashboardViewProps {
@@ -18,6 +19,7 @@ interface DashboardViewProps {
   theme: ThemeColors;
   aiInsight?: string;
   tasks: Task[];
+  courses?: Course[];
 }
 
 const ScoreJar = ({ score, isDarkMode }: { score: number, isDarkMode: boolean }) => {
@@ -92,27 +94,21 @@ const PerformanceCharts = React.memo(({
 }: any) => {
   const [hoveredNode, setHoveredNode] = useState<{ idx: number, score: number, date: string } | null>(null);
 
-  // Updated Color Logic with proper Zero Handling and Theme Alignment
   const getHeatMapColor = (s: number) => {
     if (s === 0) return isDarkMode ? 'bg-white/5' : 'bg-slate-100'; // Empty state
-    
-    // Dark Mode (Indigo Spectrum)
     if (isDarkMode) {
       if (s >= 80) return 'bg-indigo-400';
       if (s >= 50) return 'bg-indigo-600';
       if (s >= 20) return 'bg-indigo-800';
-      return 'bg-indigo-950'; // Low but not zero
-    } 
-    // Light Mode (Orange Spectrum)
-    else {
+      return 'bg-indigo-950'; 
+    } else {
       if (s >= 80) return 'bg-orange-500';
       if (s >= 50) return 'bg-orange-400';
       if (s >= 20) return 'bg-orange-300';
-      return 'bg-orange-200'; // Low but not zero
+      return 'bg-orange-200';
     }
   };
 
-  // Calculate Month Labels for Grid (X-Axis)
   const monthLabels: { label: string, colIndex: number }[] = [];
   yearData.forEach((d: any, i: number) => {
     if (d.index !== -1 && d.isFirstDayOfMonth) {
@@ -137,8 +133,6 @@ const PerformanceCharts = React.memo(({
           >
               <div className="w-full flex-1 overflow-x-auto custom-scrollbar pb-2">
                  <div className="min-w-[800px] h-full flex flex-col justify-center">
-                    
-                    {/* X-Axis: Months */}
                     <div className="flex mb-2 pl-8 relative h-4">
                        {monthLabels.map((m, i) => (
                          <div 
@@ -152,7 +146,6 @@ const PerformanceCharts = React.memo(({
                     </div>
 
                     <div className="flex">
-                      {/* Y-Axis: Days */}
                       <div className="flex flex-col gap-[3px] mr-2">
                         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
                           <div key={d} className="h-[14px] flex items-center justify-end min-w-[20px]">
@@ -161,7 +154,6 @@ const PerformanceCharts = React.memo(({
                         ))}
                       </div>
 
-                      {/* The Grid */}
                       <div 
                         className="grid gap-[3px] grid-flow-col"
                         style={{ 
@@ -201,17 +193,6 @@ const PerformanceCharts = React.memo(({
                     </div>
                  </div>
               </div>
-
-              {/* Legend */}
-              <div className="flex items-center justify-end gap-2 mt-4 px-4">
-                 <span className="text-[9px] font-bold opacity-40 uppercase">Less</span>
-                 <div className={`w-3 h-3 rounded-[2px] ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`} />
-                 <div className={`w-3 h-3 rounded-[2px] ${isDarkMode ? 'bg-indigo-950' : 'bg-orange-200'}`} />
-                 <div className={`w-3 h-3 rounded-[2px] ${isDarkMode ? 'bg-indigo-800' : 'bg-orange-300'}`} />
-                 <div className={`w-3 h-3 rounded-[2px] ${isDarkMode ? 'bg-indigo-600' : 'bg-orange-400'}`} />
-                 <div className={`w-3 h-3 rounded-[2px] ${isDarkMode ? 'bg-indigo-400' : 'bg-orange-500'}`} />
-                 <span className="text-[9px] font-bold opacity-40 uppercase">More</span>
-              </div>
           </motion.div>
         )}
 
@@ -224,7 +205,6 @@ const PerformanceCharts = React.memo(({
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="w-full h-[300px] relative"
           >
-            {/* Ambient Background Glows */}
             <div className="absolute inset-0 pointer-events-none opacity-30 overflow-hidden rounded-3xl">
                 <motion.div 
                   animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
@@ -291,12 +271,10 @@ const PerformanceCharts = React.memo(({
   );
 });
 
-// -----------------------------------------------------------------------
-
-const DashboardView: React.FC<DashboardViewProps> = ({ isDarkMode, theme, aiInsight, tasks = [] }) => {
+const DashboardView: React.FC<DashboardViewProps> = ({ isDarkMode, theme, aiInsight, tasks = [], courses = [] }) => {
   const [metrics, setMetrics] = useState<UserData>({ sleep: 0, study: 0, exercise: 0, screenTime: 0 });
   const [loading, setLoading] = useState(true);
-  const [yearData, setYearData] = useState<any[]>(generateYearHistory());
+  const [yearData, setYearData] = useState<any[]>(generateYearHistory(true)); // Start empty
   const [expandedPillar, setExpandedPillar] = useState<PillarType | null>(null);
   const [chartMode, setChartMode] = useState<'heatmap' | 'graph'>('heatmap');
 
@@ -305,81 +283,112 @@ const DashboardView: React.FC<DashboardViewProps> = ({ isDarkMode, theme, aiInsi
     if (!user) return;
 
     setLoading(true);
-    const today = startOfDay(new Date());
-
-    // Listeners for metrics...
-    const workQuery = query(collection(db, "users", user.uid, "workSessions"), where("date", ">=", today));
-    const unsubWork = onSnapshot(workQuery, (snap) => {
-      let totalMins = 0;
-      snap.forEach(doc => totalMins += doc.data().durationMinutes || 0);
-      setMetrics(prev => ({ ...prev, study: totalMins / 60 }));
-    });
-
-    const sleepQuery = query(collection(db, "users", user.uid, "sleepLogs"), orderBy("date", "desc"), limit(1));
-    const unsubSleep = onSnapshot(sleepQuery, (snap) => {
-      if (!snap.empty) setMetrics(prev => ({ ...prev, sleep: snap.docs[0].data().hours || 0 }));
-    });
-
-    const vitalQuery = query(collection(db, "users", user.uid, "vitalLogs"), orderBy("date", "desc"), limit(1));
-    const unsubVital = onSnapshot(vitalQuery, (snap) => {
-      if (!snap.empty) setMetrics(prev => ({ ...prev, exercise: snap.docs[0].data().heartRate || 0 }));
-    });
-
-    const screenQuery = query(collection(db, "users", user.uid, "screenUsage"), where("date", ">=", today));
-    const unsubScreen = onSnapshot(screenQuery, (snap) => {
-      let totalMins = 0;
-      snap.forEach(doc => totalMins += doc.data().minutes || 0);
-      setMetrics(prev => ({ ...prev, screenTime: totalMins / 60 }));
-    });
-
-    // In a real app, we would fetch history from Firebase here.
-    // For now, we regenerate the year history locally to ensure it's up to date with "Today".
-    setYearData(generateYearHistory());
-
-    setLoading(false);
-
-    return () => {
-      unsubWork(); unsubSleep(); unsubVital(); unsubScreen();
-    };
-  }, []);
-
-  // Sync metrics to Firebase (Calculate Score)
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const workScore = metrics.study * 10;
-    const sleepScore = metrics.sleep * 8;
-    const heartScore = metrics.exercise / 100;
-    const screenDeduction = (metrics.screenTime * 60) * 5;
-    
-    let totalScore = workScore + sleepScore + heartScore - screenDeduction;
-    const clampedScore = Math.max(0, Math.min(100, totalScore));
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    
-    setDoc(doc(db, "users", user.uid, "dailyStats", todayStr), { score: clampedScore, date: serverTimestamp() }, { merge: true });
 
-  }, [metrics]);
+    // Listener for ALL daily stats to populate history and today's metrics
+    const q = query(collection(db, 'users', user.uid, 'dailyStats'));
+    
+    const unsub = onSnapshot(q, (snap) => {
+       const historyMap = new Map();
+       let todayMetrics = { sleep: 0, study: 0, exercise: 0, screenTime: 0, score: 0 };
+       
+       snap.forEach(doc => {
+         const data = doc.data();
+         historyMap.set(doc.id, data);
+         if (doc.id === todayStr) {
+            todayMetrics = {
+                sleep: data.sleep || 0,
+                study: data.study || 0,
+                exercise: data.exercise || 0,
+                screenTime: data.screenTime || 0,
+                score: data.score || 0
+            };
+         }
+       });
+
+       setMetrics(todayMetrics);
+
+       // Merge real data with grid skeleton
+       const blankGrid = generateYearHistory(true);
+       const mergedGrid = blankGrid.map(day => {
+          if (day.index === -1) return day;
+          const record = historyMap.get(day.date);
+          return {
+            ...day,
+            score: record ? record.score : 0,
+          };
+       });
+       
+       setYearData(mergedGrid);
+       setLoading(false);
+    });
+
+    return () => unsub();
+  }, []);
 
   const handleLiveUpdate = async (field: string, value: string) => {
     const user = auth.currentUser;
     if (!user) return;
+    
     const val = parseFloat(value);
     const todayStr = format(new Date(), 'yyyy-MM-dd');
+    
+    // Optimistic update
+    const newMetrics = { ...metrics, [field]: val };
+    setMetrics(newMetrics);
 
-    if (field === 'study') await setDoc(doc(db, "users", user.uid, "workSessions", todayStr), { durationMinutes: val * 60, date: serverTimestamp() });
-    else if (field === 'sleep') await setDoc(doc(db, "users", user.uid, "sleepLogs", todayStr), { hours: val, date: serverTimestamp() });
-    else if (field === 'exercise') await setDoc(doc(db, "users", user.uid, "vitalLogs", todayStr), { heartRate: val, date: serverTimestamp() });
-    else if (field === 'screenTime') await setDoc(doc(db, "users", user.uid, "screenUsage", todayStr), { minutes: val * 60, date: serverTimestamp() });
+    // --- ENHANCED SCORE LOGIC ---
+    // 1. Sleep (Max 30pts): Optimal is 7-9h. 
+    // 2. Study (Max 30pts): Optimal is 4h+.
+    // 3. Vital (Max 20pts): Optimal 120min (approx 30 mins vigorous * 4 or steps).
+    // 4. Exams (Max 20pts): Average score percentage * 0.2.
+    // 5. Digital Penalty: -2pts per hour.
+
+    // Calculate Exam Performance
+    let examScoreComponent = 0;
+    let totalExamPercent = 0;
+    let examCount = 0;
+    
+    courses.forEach(c => {
+        c.exams.forEach(e => {
+            if (e.score !== undefined) {
+                totalExamPercent += (e.score / e.totalMarks) * 100;
+                examCount++;
+            }
+        });
+    });
+    
+    const examAvg = examCount > 0 ? totalExamPercent / examCount : 0; // 0-100
+    examScoreComponent = examAvg * 0.2; // Max 20 points
+    
+    const sleepScore = Math.min(newMetrics.sleep * 3.75, 30); // 8h * 3.75 = 30pts
+    const studyScore = Math.min(newMetrics.study * 7.5, 30);  // 4h * 7.5 = 30pts
+    const vitalScore = Math.min(newMetrics.exercise / 6, 20); // 120 / 6 = 20pts
+    const digitalPenalty = newMetrics.screenTime * 2; // -2pts per hour
+    
+    let totalScore = Math.round(sleepScore + studyScore + vitalScore + examScoreComponent - digitalPenalty);
+    totalScore = Math.max(0, Math.min(100, totalScore));
+
+    await setDoc(doc(db, "users", user.uid, "dailyStats", todayStr), { 
+        ...newMetrics,
+        score: totalScore,
+        date: serverTimestamp() 
+    }, { merge: true });
   };
 
+  // Compute trend data for graph from yearData
   const trendData = useMemo(() => {
-    return yearData.filter(d => d.index !== -1).slice(-30).map(d => ({ name: d.date.split('-').slice(1).join('/'), score: d.score }));
+    // Filter out padding and future dates (score 0 might be valid, but typically we want days with data)
+    // For simplicity, we just take the last 30 valid days or simply last 30 days
+    return yearData
+        .filter(d => d.index !== -1)
+        .slice(-30)
+        .map(d => ({ 
+            name: d.date.split('-').slice(1).join('/'), 
+            score: d.score 
+        }));
   }, [yearData]);
   
-  const displayScore = (metrics.study * 10) + (metrics.sleep * 8) + (metrics.exercise / 100) - ((metrics.screenTime * 60) * 5);
-  const clampedDisplayScore = Math.max(0, Math.min(100, displayScore));
-
   const pillarTasks = useMemo(() => ({
     academics: tasks.filter(t => t.pillar === 'academics'),
     recovery: tasks.filter(t => t.pillar === 'recovery'),
@@ -389,6 +398,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ isDarkMode, theme, aiInsi
 
   const toggleExpand = (p: PillarType) => setExpandedPillar(expandedPillar === p ? null : p);
 
+  // Score is now coming directly from DB calculation or optimistic state
+  const currentScore = metrics['score'] !== undefined ? metrics['score'] : 0;
+
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 size={40} className="animate-spin text-orange-500" /></div>;
 
   return (
@@ -396,7 +408,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ isDarkMode, theme, aiInsi
       <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-2">
         <div>
            <h2 className={`text-3xl md:text-4xl font-bold ${theme.text} cinematic-text`}>Dashboard</h2>
-           <p className={`text-[10px] md:text-sm font-black tracking-[0.2em] uppercase opacity-40 ${theme.text}`}>Heuristics v3.11.0</p>
         </div>
         
         <motion.div whileHover={{ scale: 1.02 }} className={`px-4 py-3 rounded-2xl border ${isDarkMode ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-orange-500/5 border-orange-500/20'} flex items-center gap-3 max-w-md w-full md:w-auto shadow-sm backdrop-blur-md`}>
@@ -412,7 +423,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ isDarkMode, theme, aiInsi
         <motion.div layout className={`rounded-[2rem] md:rounded-[3.1rem] p-8 md:p-10 flex flex-col items-center justify-center text-center relative overflow-hidden group ${isDarkMode ? "bg-slate-900/60 border border-white/10" : "bg-white border border-slate-200 shadow-xl"}`}>
           <div className="absolute inset-0 z-0"><div className={`absolute inset-0 grid-pattern opacity-[0.05] ${isDarkMode ? 'text-indigo-400' : 'text-orange-500'}`} /></div>
           <div className="relative z-10 flex flex-col items-center gap-4">
-             <ScoreJar score={clampedDisplayScore} isDarkMode={isDarkMode} />
+             <ScoreJar score={currentScore} isDarkMode={isDarkMode} />
              <div className="flex items-center justify-center gap-2"><Zap className="text-orange-500" size={18} fill="currentColor" /><span className={`text-[10px] md:text-xs font-black tracking-[0.3em] uppercase opacity-50`}>Current Score</span></div>
           </div>
         </motion.div>

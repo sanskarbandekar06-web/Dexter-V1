@@ -1,11 +1,20 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Pause, Play, RotateCcw, Plus, Minus, Trees, Leaf, Sparkles, X, Wind } from 'lucide-react';
+import { Pause, Play, RotateCcw, Plus, Minus, Trees, Leaf, Sparkles, X, Wind, Coffee, Zap } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { ThemeColors } from '../types';
+
+interface FocusState {
+  timeLeft: number;
+  totalTime: number;
+  isActive: boolean;
+}
 
 interface FocusPageProps {
   isDarkMode: boolean;
   theme: ThemeColors;
+  focusState: FocusState;
+  setFocusState: React.Dispatch<React.SetStateAction<FocusState>>;
 }
 
 const DEFAULT_TIME = 25 * 60;
@@ -72,7 +81,7 @@ const BreathingOverlay = ({ onClose, isDarkMode }: { onClose: () => void; isDark
   return (
     <motion.div 
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xl rounded-[3rem] overflow-hidden"
+      className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xl rounded-[2rem] md:rounded-[3rem] overflow-hidden"
     >
         <button onClick={onClose} className="absolute top-8 right-8 text-white/50 hover:text-white transition-colors p-2"><X size={32}/></button>
         
@@ -99,10 +108,8 @@ const BreathingOverlay = ({ onClose, isDarkMode }: { onClose: () => void; isDark
   );
 };
 
-const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
-  const [totalTime, setTotalTime] = useState(DEFAULT_TIME);
-  const [timeLeft, setTimeLeft] = useState(DEFAULT_TIME);
-  const [isActive, setIsActive] = useState(false);
+const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme, focusState, setFocusState }) => {
+  const { timeLeft, totalTime, isActive } = focusState;
   
   // Custom Time Input State
   const [isEditing, setIsEditing] = useState(false);
@@ -111,31 +118,7 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
   // Purity Mode State
   const [showPurity, setShowPurity] = useState(false);
 
-  useEffect(() => {
-    let interval: number | null = null;
-    if (isActive && timeLeft > 0) {
-      interval = window.setInterval(() => setTimeLeft(t => t - 1), 1000);
-    } else if (timeLeft === 0 && isActive) {
-      // Timer finished just now
-      setIsActive(false);
-      
-      // Trigger Background Notification
-      if ("Notification" in window && Notification.permission === "granted") {
-        try {
-          new Notification("Focus Session Complete", {
-            body: "Great work! Time to recharge and log your progress.",
-            icon: "https://img.icons8.com/color/48/000000/brain.png" // Generic brain icon or app icon
-          });
-        } catch (e) {
-          console.error("Notification failed", e);
-        }
-      }
-    } else if (timeLeft === 0) {
-      setIsActive(false);
-    }
-    return () => { if(interval) clearInterval(interval); };
-  }, [isActive, timeLeft]);
-
+  // Helper to format time
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -144,9 +127,12 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
 
   const adjustTime = (amount: number) => {
     const newTotal = Math.max(60, totalTime + amount);
-    setTotalTime(newTotal);
-    setTimeLeft(newTotal);
-    setIsActive(false);
+    setFocusState(prev => ({
+        ...prev,
+        totalTime: newTotal,
+        timeLeft: newTotal,
+        isActive: false
+    }));
   };
 
   const handleTimeClick = () => {
@@ -160,8 +146,7 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
     const val = parseInt(editValue);
     if (!isNaN(val) && val > 0 && val <= 180) { // Limit to 3 hours
       const newTime = val * 60;
-      setTotalTime(newTime);
-      setTimeLeft(newTime);
+      setFocusState({ timeLeft: newTime, totalTime: newTime, isActive: false });
 
       // Ask for background permission (Notifications) when setting a custom timer
       if ("Notification" in window && Notification.permission === "default") {
@@ -190,16 +175,22 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
     })
   };
 
+  // Presets
+  const applyPreset = (minutes: number) => {
+      const t = minutes * 60;
+      setFocusState({ timeLeft: t, totalTime: t, isActive: false });
+  };
+
   return (
-    <div className={`relative h-full flex flex-col items-center justify-center overflow-hidden rounded-[2rem] md:rounded-[3rem] transition-all duration-1000 ${isDarkMode ? 'bg-[#020617]' : 'bg-[#FDFBF7]'} border border-white/10 shadow-2xl`}>
+    <div className={`relative h-full flex flex-col items-center justify-between overflow-y-auto md:overflow-hidden rounded-[2rem] md:rounded-[3rem] transition-all duration-1000 ${isDarkMode ? 'bg-[#020617]' : 'bg-[#FDFBF7]'} border border-white/10 shadow-2xl`}>
       
       {/* 1. COZY FOREST BACKGROUND ELEMENTS */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 pointer-events-none">
         {/* Sky Gradient */}
         <div className={`absolute inset-0 bg-gradient-to-b opacity-40 ${isDarkMode ? 'from-indigo-950 via-slate-950 to-black' : 'from-orange-50 via-stone-50 to-white'}`} />
         
         {/* Distant Forest Silhouettes */}
-        <div className="absolute bottom-0 left-0 right-0 h-1/2 flex items-end justify-around opacity-10 pointer-events-none px-12">
+        <div className="absolute bottom-0 left-0 right-0 h-1/2 flex items-end justify-around opacity-10 px-12">
            <Trees size={120} className={theme.text} strokeWidth={1} />
            <Trees size={180} className={theme.text} strokeWidth={1} />
            <Trees size={140} className={theme.text} strokeWidth={1} />
@@ -219,17 +210,15 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
         </motion.div>
         
         {/* Vignette */}
-        <div className="absolute inset-0 shadow-[inset_0_0_150px_rgba(0,0,0,0.1)] pointer-events-none" />
+        <div className="absolute inset-0 shadow-[inset_0_0_150px_rgba(0,0,0,0.1)]" />
       </div>
 
       <AnimatePresence>
         {showPurity && <BreathingOverlay onClose={() => setShowPurity(false)} isDarkMode={isDarkMode} />}
       </AnimatePresence>
 
-      {/* 2. MAIN TIMER INTERFACE */}
-      <div className="relative z-10 flex flex-col items-center space-y-8 md:space-y-12 w-full max-w-2xl px-6">
-        
-        <header className="text-center space-y-2 mt-4 md:mt-0">
+      {/* HEADER */}
+      <header className="relative z-10 text-center space-y-2 mt-6 md:mt-12 w-full px-6 shrink-0">
            <motion.div 
              initial={{ opacity: 0, y: -10 }}
              animate={{ opacity: 1, y: 0 }}
@@ -238,18 +227,21 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
              <Sparkles size={12} className="text-orange-500" /> Sanctuary Protocol
            </motion.div>
            <h2 className={`text-3xl md:text-5xl font-black ${theme.text} cinematic-text`}>Focus Reservoir</h2>
-        </header>
+      </header>
+
+      {/* 2. MAIN TIMER INTERFACE (CENTERED) */}
+      <div className="relative z-10 flex flex-col flex-1 items-center justify-center w-full max-w-2xl px-4 md:px-6 py-4 min-h-[400px]">
         
         <div className="relative flex flex-col md:flex-row items-center justify-center w-full gap-8 md:gap-0">
           
           {/* ADJUSTMENT CONTROLS - LEFT (Add) */}
-          <div className="order-2 md:order-1 md:absolute md:left-0 xl:-left-12 flex flex-row md:flex-col gap-3 z-20">
+          <div className="order-2 md:order-1 md:absolute md:left-0 xl:-left-12 flex flex-row md:flex-col gap-4 z-20">
              <motion.button 
                whileHover={{ scale: 1.1, x: -2 }}
                whileTap={{ scale: 0.9 }}
                onClick={() => adjustTime(300)}
                aria-label="Add 5 Minutes"
-               className={`p-3 md:p-4 rounded-2xl border ${theme.sidebarBorder} ${theme.cardBg} ${theme.text} shadow-xl backdrop-blur-md flex flex-col items-center group`}
+               className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl border ${theme.sidebarBorder} ${theme.cardBg} ${theme.text} shadow-xl backdrop-blur-md flex flex-col items-center justify-center group`}
              >
                 <Plus size={20} className="group-hover:text-orange-500 transition-colors" />
                 <span className="text-[9px] font-black mt-0.5">5m</span>
@@ -259,7 +251,7 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
                whileTap={{ scale: 0.9 }}
                onClick={() => adjustTime(60)}
                aria-label="Add 1 Minute"
-               className={`p-3 md:p-4 rounded-2xl border ${theme.sidebarBorder} ${theme.cardBg} ${theme.text} shadow-xl backdrop-blur-md flex flex-col items-center group`}
+               className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl border ${theme.sidebarBorder} ${theme.cardBg} ${theme.text} shadow-xl backdrop-blur-md flex flex-col items-center justify-center group`}
              >
                 <Plus size={20} className="group-hover:text-orange-500 transition-colors" />
                 <span className="text-[9px] font-black mt-0.5">1m</span>
@@ -267,7 +259,7 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
           </div>
 
           {/* THE FLUID JAR */}
-          <div className="order-1 md:order-2 relative w-64 h-64 md:w-96 md:h-96 flex items-center justify-center">
+          <div className="order-1 md:order-2 relative w-64 h-64 md:w-80 md:h-80 lg:w-96 lg:h-96 flex items-center justify-center my-4 md:my-0">
             <div className={`relative w-full h-full rounded-full border-[8px] md:border-[12px] overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] transition-colors duration-500
               ${isDarkMode ? 'bg-slate-900/40 border-slate-700/50' : 'bg-white/40 border-slate-100'}
             `}>
@@ -336,13 +328,13 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
           </div>
 
           {/* ADJUSTMENT CONTROLS - RIGHT (Subtract) */}
-          <div className="order-3 md:order-3 md:absolute md:right-0 xl:-right-12 flex flex-row md:flex-col gap-3 z-20">
+          <div className="order-3 md:order-3 md:absolute md:right-0 xl:-right-12 flex flex-row md:flex-col gap-4 z-20">
              <motion.button 
                whileHover={{ scale: 1.1, x: 2 }}
                whileTap={{ scale: 0.9 }}
                onClick={() => adjustTime(-300)}
                aria-label="Subtract 5 Minutes"
-               className={`p-3 md:p-4 rounded-2xl border ${theme.sidebarBorder} ${theme.cardBg} ${theme.text} shadow-xl backdrop-blur-md flex flex-col items-center group`}
+               className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl border ${theme.sidebarBorder} ${theme.cardBg} ${theme.text} shadow-xl backdrop-blur-md flex flex-col items-center justify-center group`}
              >
                 <Minus size={20} className="group-hover:text-rose-500 transition-colors" />
                 <span className="text-[9px] font-black mt-0.5">5m</span>
@@ -352,7 +344,7 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
                whileTap={{ scale: 0.9 }}
                onClick={() => adjustTime(-60)}
                aria-label="Subtract 1 Minute"
-               className={`p-3 md:p-4 rounded-2xl border ${theme.sidebarBorder} ${theme.cardBg} ${theme.text} shadow-xl backdrop-blur-md flex flex-col items-center group`}
+               className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl border ${theme.sidebarBorder} ${theme.cardBg} ${theme.text} shadow-xl backdrop-blur-md flex flex-col items-center justify-center group`}
              >
                 <Minus size={20} className="group-hover:text-rose-500 transition-colors" />
                 <span className="text-[9px] font-black mt-0.5">1m</span>
@@ -361,11 +353,11 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
         </div>
 
         {/* 3. CONTROL BUTTONS */}
-        <div className="flex gap-6 md:gap-12 items-center">
+        <div className="flex gap-6 md:gap-12 items-center mt-8 md:mt-12 mb-4 md:mb-0">
           <motion.button 
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => { setIsActive(false); setTimeLeft(totalTime); }} 
+            onClick={() => setFocusState(prev => ({...prev, isActive: false, timeLeft: prev.totalTime}))} 
             aria-label="Reset Timer"
             className={`p-4 md:p-6 rounded-full hover:bg-black/5 dark:hover:bg-white/5 border ${theme.sidebarBorder} ${theme.text} transition-all group`}
           >
@@ -375,7 +367,7 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
           <motion.button 
             whileHover={{ scale: 1.05, boxShadow: isDarkMode ? '0 0 60px rgba(99,102,241,0.5)' : '0 0 60px rgba(249,115,22,0.4)' }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setIsActive(!isActive)} 
+            onClick={() => setFocusState(prev => ({...prev, isActive: !prev.isActive}))} 
             aria-label={isActive ? "Pause Timer" : "Start Timer"}
             className={`relative p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] shadow-2xl overflow-hidden group ${theme.buttonPrimary}`}
           >
@@ -396,6 +388,24 @@ const FocusPage: React.FC<FocusPageProps> = ({ isDarkMode, theme }) => {
              <span className={`text-[9px] font-black uppercase tracking-widest mt-1 ${theme.text}`}>Purity</span>
           </div>
         </div>
+      </div>
+
+      {/* 4. FOOTER PRESETS - TO FILL SPACE */}
+      <div className={`relative z-10 w-full p-4 md:px-12 md:py-6 border-t ${theme.sidebarBorder} backdrop-blur-md bg-white/5 dark:bg-black/10 shrink-0`}>
+         <div className="flex flex-wrap justify-center gap-2 md:gap-3">
+            <button onClick={() => applyPreset(25)} className={`flex items-center gap-2 px-4 py-3 md:px-6 rounded-xl border ${theme.sidebarBorder} hover:bg-black/5 dark:hover:bg-white/5 transition-all text-[10px] md:text-xs font-bold ${theme.text} whitespace-nowrap`}>
+               <Zap size={14} className="text-orange-500"/> Focus (25m)
+            </button>
+            <button onClick={() => applyPreset(50)} className={`flex items-center gap-2 px-4 py-3 md:px-6 rounded-xl border ${theme.sidebarBorder} hover:bg-black/5 dark:hover:bg-white/5 transition-all text-[10px] md:text-xs font-bold ${theme.text} whitespace-nowrap`}>
+               <Zap size={14} className="text-orange-500 fill-current"/> Flow (50m)
+            </button>
+            <button onClick={() => applyPreset(5)} className={`flex items-center gap-2 px-4 py-3 md:px-6 rounded-xl border ${theme.sidebarBorder} hover:bg-black/5 dark:hover:bg-white/5 transition-all text-[10px] md:text-xs font-bold ${theme.text} whitespace-nowrap`}>
+               <Coffee size={14} className="text-emerald-500"/> Short Break
+            </button>
+            <button onClick={() => applyPreset(15)} className={`flex items-center gap-2 px-4 py-3 md:px-6 rounded-xl border ${theme.sidebarBorder} hover:bg-black/5 dark:hover:bg-white/5 transition-all text-[10px] md:text-xs font-bold ${theme.text} whitespace-nowrap`}>
+               <Coffee size={14} className="text-emerald-500 fill-current"/> Long Break
+            </button>
+         </div>
       </div>
     </div>
   );

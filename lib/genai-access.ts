@@ -1,21 +1,21 @@
+
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize the Google GenAI SDK with the API key from process.env
+// Initialize the Google GenAI SDK using named parameter and process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // Helper for retry logic
-async function generateWithRetry(modelName: string, contents: any[], retries = 3, delay = 2000): Promise<string> {
+async function generateWithRetry(modelName: string, contents: any[], retries = 2, delay = 1500): Promise<string> {
     try {
         const response = await ai.models.generateContent({
           model: modelName,
-          contents: contents
+          // Correctly wrap multiple parts in a parts object for multi-part content
+          contents: { parts: contents }
         });
         return response.text || "";
     } catch (error: any) {
-        const isQuotaError = error.status === 429 || error.message?.includes('429') || error.message?.includes('quota');
-
+        const isQuotaError = error.status === 429 || error.message?.includes('429');
         if (isQuotaError && retries > 0) {
-            console.warn(`GenAI quota exceeded. Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
             return generateWithRetry(modelName, contents, retries - 1, delay * 2);
         }
@@ -23,109 +23,76 @@ async function generateWithRetry(modelName: string, contents: any[], retries = 3
     }
 }
 
-// --- 1. VISION/DOC AID (Image/PDF/Text -> Full Reading) ---
-export async function generateAudioExplanation(
-  file: File, 
-  ttsMode: 'browser' | 'gemini'
-): Promise<{ text: string, audioData?: string } | null> {
+export async function generateAudioExplanation(file: File): Promise<{ text: string }> {
+  if (!process.env.API_KEY) return { text: "API Key missing." };
   try {
     let parts: any[] = [];
-
     if (file.type.includes('text') || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
       const textContent = await file.text();
-      parts = [
-        { text: "You are a reading assistant for the visually impaired. Read the following text content out loud exactly as it is written. Do not summarize. Do not explain. Just read the text content verbatim." },
-        { text: textContent }
-      ];
+      parts = [{ text: "Read this verbatim for the visually impaired. No intro, no summary: " + textContent }];
     } else {
       const base64Data = await fileToBase64(file);
-      const mimeType = file.type || "application/pdf"; 
-
       parts = [
-        { inlineData: { mimeType: mimeType, data: base64Data } },
-        { text: "You are a reading assistant. Analyze this document. Extract all the text found in this document and read it out loud exactly as it is written. Do not summarize. Do not add introductory phrases like 'Here is the text'. Read the full content verbatim." }
+        { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } },
+        { text: "Extract and read the full text verbatim. No commentary." }
       ];
     }
-
-    // Use gemini-3-flash-preview instead of 1.5-flash
-    const fullText = await generateWithRetry('gemini-3-flash-preview', parts);
-    
-    return {
-      text: fullText || "I couldn't extract text from that document.",
-      audioData: undefined // UI will fallback to browser TTS if this is undefined
-    };
-
-  } catch (error) {
-    console.error("Vision/Doc Aid Error:", error);
-    return null;
+    const text = await generateWithRetry('gemini-3-flash-preview', parts);
+    return { text: text || "Extraction failed." };
+  } catch (error: any) {
+    return { text: `Error: ${error.message}` };
   }
 }
 
-// --- 2. LEXICON AID (Image/PDF -> Semantic HTML) ---
 export async function convertToDyslexiaFriendly(file: File): Promise<string> {
+  if (!process.env.API_KEY) return "API Key missing.";
   try {
     const base64Data = await fileToBase64(file);
-    const mimeType = file.type || "application/pdf";
-
-    // Use gemini-3-pro-preview instead of 1.5-pro for complex formatting
     const parts = [
-      { inlineData: { mimeType: mimeType, data: base64Data } },
-      { text: `
-        Analyze this document. Extract the content and format it as clean, semantic HTML.
-        
-        Rules for Dyslexia-Friendly Output:
-        1. Use <h1>, <h2>, <h3> for structure.
-        2. Break large text blocks into short paragraphs (<p>).
-        3. Use <ul> and <li> for any lists or steps.
-        4. Wrap key concepts or important terms in <strong> tags to make them stand out.
-        5. Do NOT use <html>, <head>, or <body> tags. Just return the content inside a <div>.
-        6. Do NOT summarize. Keep the original meaning but make the structure easier to scan.
-        ` 
-      }
+      { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } },
+      { text: "Convert this to clean semantic HTML for a dyslexia-friendly reader. Use <h1>, <p>, and <ul>. Use <strong> for core concepts. Be concise." }
     ];
-
-    const text = await generateWithRetry('gemini-3-pro-preview', parts);
-    return text || "<p>Could not process text.</p>";
-  } catch (error) {
-    console.error("Lexicon Error:", error);
-    return "<p>Error processing document. System traffic is high, please try again.</p>";
+    return await generateWithRetry('gemini-3-flash-preview', parts);
+  } catch (error: any) {
+    return `<p>Error: ${error.message}</p>`;
   }
 }
 
-// --- 3. SERENITY AID (Context -> Grounding Exercise) ---
-export async function generateGroundingExercise(context: string): Promise<string[]> {
+// THE THERAPIST (Panic Button)
+export async function generateCrisisSupport(context: string): Promise<string> {
+  if (!process.env.API_KEY) return "Brain offline.";
   try {
-    const prompt = `The user is feeling: "${context}". 
-      Generate a "5-4-3-2-1" grounding exercise specifically tailored to this situation. 
-      Return ONLY 5 short sentences (one for each step 5 down to 1). 
-      Example: "Look around and name 5 blue things.", "Touch 4 textures near you."
-      Do not add numbering, just the sentences separated by newlines.`;
-
-    const text = await generateWithRetry('gemini-3-flash-preview', [{ text: prompt }]);
-    return (text || "").split('\n').filter(line => line.trim().length > 0);
+    const prompt = `You are a warm, empathetic student counselor. The user says: "${context}". 
+      Provide immediate, deeply comforting advice (CBT-style). 
+      Give 2-3 specific life advice steps to solve their immediate overwhelm. 
+      Speak directly to them ("I hear you", "We can do this"). 
+      Max 100 words. Be powerful and concise.`;
+    return await generateWithRetry('gemini-3-flash-preview', [{ text: prompt }]);
   } catch (error) {
-    console.error("Serenity Error:", error);
-    return [
-      "Acknowledge 5 things you see around you.",
-      "Acknowledge 4 things you can touch.",
-      "Acknowledge 3 things you can hear.",
-      "Acknowledge 2 things you can smell.",
-      "Acknowledge 1 thing you can taste."
-    ];
+    return "I'm here for you. Take a deep breath. Focus on one small thing you can control right now.";
   }
 }
 
-// Helper
+// ACTION AID (ADHD Task Breakdown)
+export async function generateTaskBreakdown(goal: string): Promise<string[]> {
+  if (!process.env.API_KEY) return ["API Key missing."];
+  try {
+    const prompt = `The user has ADHD paralysis for the goal: "${goal}". 
+      Break this into exactly 5 micro-steps. Each step must be so small it feels trivial.
+      Example: "Pick up the pen", "Write one word".
+      Return only the 5 steps separated by newlines. Max 10 words per step.`;
+    const text = await generateWithRetry('gemini-3-flash-preview', [{ text: prompt }]);
+    return text.split('\n').filter(l => l.trim().length > 0).slice(0, 5);
+  } catch (error) {
+    return ["Open your workspace.", "Sit down.", "Look at the material.", "Set a 5-min timer.", "Start one tiny part."];
+  }
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Remove Data URL prefix
-      const base64 = result.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = error => reject(error);
+    reader.onload = () => resolve((reader.result as string).split(',')[1]);
+    reader.onerror = reject;
   });
 }

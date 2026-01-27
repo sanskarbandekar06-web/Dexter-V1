@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -241,7 +242,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
                            </div>
                            <div>
                              <h4 className="text-lg font-bold">Pair Mobile Device</h4>
-                             <p className="text-xs opacity-50 max-w-xs mx-auto">Establish a secure link with the DayScore mobile app for real-time biometric sync.</p>
+                             <p className="text-xs opacity-50 max-w-xs mx-auto">Establish a secure link with the Dexter mobile app for real-time biometric sync.</p>
                            </div>
                            <button className="px-8 py-3 bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/30">Initialize Link</button>
                         </div>

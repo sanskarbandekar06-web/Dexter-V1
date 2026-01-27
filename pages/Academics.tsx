@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -6,16 +7,20 @@ import {
   Trash2, GraduationCap,
   Download, Upload,
   MoreHorizontal, Filter, Grid, List, Search,
-  Image as ImageIcon, PlayCircle, File
+  Image as ImageIcon, PlayCircle, File, Eye
 } from 'lucide-react';
 import { ThemeColors, CalendarEvent, Course, ExamRecord, Resource, PillarType } from '../types';
 import CourseModal from '../components/CourseModal';
+import { db, doc, setDoc, deleteDoc } from '../lib/firebase';
 
 interface AcademicsPageProps {
   isDarkMode: boolean;
   theme: ThemeColors;
   events: CalendarEvent[];
   setEvents: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
+  courses: Course[];
+  setCourses: React.Dispatch<React.SetStateAction<Course[]>>;
+  userId?: string;
 }
 
 function formatBytes(bytes: number, decimals = 1) {
@@ -27,59 +32,12 @@ function formatBytes(bytes: number, decimals = 1) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-const INITIAL_COURSES: Course[] = [
-  {
-    id: 1,
-    name: "Data Structures",
-    code: "CS 101",
-    color: "bg-blue-500",
-    pillar: 'academics',
-    professor: "Dr. Turing",
-    location: "Hall A",
-    exams: [
-      { id: 1, title: "Midterm", date: "2024-03-15", score: 88, totalMarks: 100, weight: 30 },
-      { id: 2, title: "Final", date: "2024-05-20", totalMarks: 100, weight: 50 }
-    ],
-    resources: [
-      { id: 1, title: "Binary Trees Guide", type: "pdf", size: "2.4 MB" },
-      { id: 2, title: "Sorting Algorithms", type: "video" }
-    ],
-    links: [
-      { id: 1, title: "Course Portal", type: "link", url: "https://university.edu/cs101" }
-    ]
-  },
-  {
-    id: 2,
-    name: "Calculus II",
-    code: "MAT 201",
-    color: "bg-orange-500",
-    pillar: 'academics',
-    professor: "Prof. Newton",
-    exams: [
-      { id: 1, title: "Quiz 1", date: "2024-02-10", score: 18, totalMarks: 20, weight: 10 }
-    ],
-    resources: [],
-    links: []
-  },
-  {
-    id: 3,
-    name: "Sleep Hygiene",
-    code: "RECOVERY",
-    color: "bg-indigo-500",
-    pillar: 'recovery',
-    professor: "Dr. Rest",
-    exams: [],
-    resources: [],
-    links: []
-  }
-];
-
-const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
-  const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
+const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme, courses, setCourses, userId }) => {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [isAddingCourse, setIsAddingCourse] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'academics' | 'growth'>('all');
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewingResource, setViewingResource] = useState<Resource | null>(null);
 
   const filteredCourses = useMemo(() => {
     let result = courses;
@@ -95,24 +53,72 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
     return result;
   }, [courses, activeFilter, searchQuery]);
 
-  const handleSaveCourse = (course: Course) => {
-    const exists = courses.find(c => c.id === course.id);
-    if (exists) {
-      setCourses(courses.map(c => c.id === course.id ? course : c));
+  const handleSaveCourse = async (course: Course) => {
+    if (userId) {
+       await setDoc(doc(db, 'users', userId, 'courses', course.id.toString()), course);
     } else {
-      setCourses([...courses, course]);
+        const exists = courses.find(c => c.id === course.id);
+        if (exists) {
+          setCourses(courses.map(c => c.id === course.id ? course : c));
+        } else {
+          setCourses([...courses, course]);
+        }
     }
     setIsAddingCourse(false);
   };
 
-  const updateCourse = (updated: Course) => {
-    setCourses(courses.map(c => c.id === updated.id ? updated : c));
+  const updateCourse = async (updated: Course) => {
+    if (userId) {
+      await setDoc(doc(db, 'users', userId, 'courses', updated.id.toString()), updated);
+    } else {
+      setCourses(courses.map(c => c.id === updated.id ? updated : c));
+    }
     setSelectedCourse(updated);
   };
 
-  const deleteCourse = (id: number) => {
-    setCourses(courses.filter(c => c.id !== id));
+  const deleteCourse = async (id: number) => {
+    if (userId) {
+      await deleteDoc(doc(db, 'users', userId, 'courses', id.toString()));
+    } else {
+      setCourses(courses.filter(c => c.id !== id));
+    }
     setSelectedCourse(null);
+  };
+
+  // --- Resource Viewer Modal Component ---
+  const ResourceViewer = ({ resource, onClose }: { resource: Resource, onClose: () => void }) => {
+    return (
+      <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="relative w-full max-w-5xl max-h-[90vh] flex flex-col items-center">
+            <button 
+              onClick={onClose} 
+              className="absolute -top-12 right-0 p-2 text-white hover:bg-white/10 rounded-full transition-all"
+            >
+              <X size={24} />
+            </button>
+            
+            {resource.type === 'image' && (
+               <img src={resource.url} alt={resource.title} className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" />
+            )}
+            
+            {resource.type === 'video' && (
+               <video src={resource.url} controls autoPlay className="max-w-full max-h-[85vh] rounded-lg shadow-2xl" />
+            )}
+            
+            {(resource.type === 'pdf' || resource.type === 'file') && (
+               <div className="bg-white w-full h-[80vh] rounded-lg shadow-2xl overflow-hidden flex flex-col">
+                  <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                     <span className="font-bold text-black">{resource.title}</span>
+                     <a href={resource.url} download className="text-blue-500 font-bold text-xs flex items-center gap-1">
+                        <Download size={12}/> Download
+                     </a>
+                  </div>
+                  <iframe src={resource.url} className="w-full h-full" title="File Viewer" />
+               </div>
+            )}
+        </div>
+      </div>
+    );
   };
 
   const ExamSection = ({ course }: { course: Course }) => {
@@ -170,11 +176,11 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
         {isAdding && (
           <form onSubmit={addExam} className="p-4 rounded-xl bg-black/5 dark:bg-white/5 space-y-3 animate-fadeInUp">
              <input name="title" required placeholder="Exam Title" className="w-full bg-transparent border-b border-black/10 dark:border-white/10 p-2 outline-none text-sm" />
-             <div className="flex gap-3">
+             <div className="flex flex-col sm:flex-row gap-3">
                <input name="date" type="date" required className="flex-1 bg-transparent border-b border-black/10 dark:border-white/10 p-2 outline-none text-sm opacity-70" />
                <input name="total" type="number" placeholder="Total Marks" required className="flex-1 bg-transparent border-b border-black/10 dark:border-white/10 p-2 outline-none text-sm" />
              </div>
-             <div className="flex gap-3">
+             <div className="flex flex-col sm:flex-row gap-3">
                <input name="weight" type="number" placeholder="Weight %" className="flex-1 bg-transparent border-b border-black/10 dark:border-white/10 p-2 outline-none text-sm" />
                <input name="score" type="number" placeholder="My Score" className="flex-1 bg-transparent border-b border-black/10 dark:border-white/10 p-2 outline-none text-sm" />
              </div>
@@ -187,9 +193,9 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
 
         <div className="space-y-3">
           {course.exams.map(exam => (
-             <div key={exam.id} className={`p-4 rounded-2xl border ${theme.cardBorder} ${isDarkMode ? 'bg-white/5' : 'bg-white'} flex items-center justify-between group`}>
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+             <div key={exam.id} className={`p-4 rounded-2xl border ${theme.cardBorder} ${isDarkMode ? 'bg-white/5' : 'bg-white'} flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group`}>
+                <div className="flex items-center gap-4 w-full sm:w-auto">
+                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
                     <span className="text-[10px] font-bold uppercase opacity-50">{new Date(exam.date).toLocaleDateString(undefined, { month: 'short' })}</span>
                     <span className="text-lg font-black leading-none">{new Date(exam.date).getDate()}</span>
                   </div>
@@ -199,10 +205,10 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
                    <div className="text-right">
                       <div className="text-[10px] uppercase font-bold opacity-40">Score</div>
-                      <div className="flex items-baseline gap-1">
+                      <div className="flex items-baseline gap-1 justify-end">
                         <input 
                           type="number" 
                           defaultValue={exam.score} 
@@ -213,7 +219,7 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
                         <span className="opacity-50 text-sm">/ {exam.totalMarks}</span>
                       </div>
                    </div>
-                   <button onClick={() => updateCourse({ ...course, exams: course.exams.filter(e => e.id !== exam.id) })} className="opacity-0 group-hover:opacity-100 text-rose-500 p-2 transition-opacity">
+                   <button onClick={() => updateCourse({ ...course, exams: course.exams.filter(e => e.id !== exam.id) })} className="sm:opacity-0 group-hover:opacity-100 text-rose-500 p-2 transition-opacity">
                      <Trash2 size={16} />
                    </button>
                 </div>
@@ -349,6 +355,9 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
 
                     {/* Overlay Action */}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                        <button onClick={() => setViewingResource(res)} className="p-2 rounded-full bg-white text-black hover:scale-110 transition-transform" title="View File">
+                            <Eye size={16} />
+                        </button>
                         <a href={res.url} download={res.title} className="p-2 rounded-full bg-white text-black hover:scale-110 transition-transform">
                             <Download size={16} />
                         </a>
@@ -410,10 +419,10 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
         </div>
 
         {isAdding && (
-          <form onSubmit={addLink} className="flex gap-2 animate-fadeInUp">
-            <input name="title" required placeholder="Title" className={`w-1/3 rounded-lg px-3 py-2 text-sm ${isDarkMode ? 'bg-white/10' : 'bg-black/5'} outline-none`} />
+          <form onSubmit={addLink} className="flex flex-col sm:flex-row gap-2 animate-fadeInUp">
+            <input name="title" required placeholder="Title" className={`w-full sm:w-1/3 rounded-lg px-3 py-2 text-sm ${isDarkMode ? 'bg-white/10' : 'bg-black/5'} outline-none`} />
             <input name="url" required placeholder="https://..." className={`flex-1 rounded-lg px-3 py-2 text-sm ${isDarkMode ? 'bg-white/10' : 'bg-black/5'} outline-none`} />
-            <button type="submit" className="bg-blue-500 text-white rounded-lg px-4 text-sm font-bold">Add</button>
+            <button type="submit" className="bg-blue-500 text-white rounded-lg px-4 py-2 sm:py-0 text-sm font-bold">Add</button>
           </form>
         )}
 
@@ -437,8 +446,12 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
   };
 
   return (
-    <div className="h-full overflow-hidden relative">
-      <div className="flex flex-col md:flex-row items-end justify-between px-4 md:px-8 py-6 pb-2 gap-6">
+    <div className="h-full flex flex-col relative overflow-hidden">
+      <AnimatePresence>
+        {viewingResource && <ResourceViewer resource={viewingResource} onClose={() => setViewingResource(null)} />}
+      </AnimatePresence>
+
+      <div className="shrink-0 flex flex-col md:flex-row items-end justify-between px-4 md:px-8 py-6 pb-4 gap-6">
         <div className="flex-1 w-full md:w-auto">
            <h1 className={`text-4xl font-black tracking-tight cinematic-text ${theme.text}`}>Strategy Map</h1>
            <p className={`text-sm opacity-50 font-medium ${theme.text}`}>Adaptive Growth Trajectories</p>
@@ -454,7 +467,7 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
            </div>
         </div>
 
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto mt-4 md:mt-0">
           <div className={`flex p-1 rounded-2xl border ${theme.cardBorder} ${theme.cardBg} shadow-sm w-full md:w-auto`}>
             <button 
               onClick={() => setActiveFilter('all')}
@@ -488,7 +501,7 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
         </div>
       </div>
 
-      <div className="p-4 md:p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto h-[calc(100vh-220px)] custom-scrollbar pb-32">
+      <div className="flex-1 p-4 md:p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto custom-scrollbar pb-32 min-h-0">
         <AnimatePresence mode="popLayout">
           {filteredCourses.map((course) => (
             <motion.div
@@ -550,7 +563,7 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
           >
             <motion.div 
               layoutId={`course-${selectedCourse.id}`}
-              className={`w-full max-w-5xl h-[85vh] ${theme.cardBg} rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row relative border ${theme.cardBorder}`}
+              className={`w-full max-w-5xl h-[90vh] md:h-[85vh] ${theme.cardBg} rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row relative border ${theme.cardBorder}`}
               onClick={e => e.stopPropagation()}
             >
               <button 
@@ -560,14 +573,14 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
                 <X size={20} />
               </button>
 
-              <div className={`w-full md:w-1/3 p-8 ${selectedCourse.color} relative overflow-hidden flex flex-col justify-between text-white`}>
+              <div className={`w-full md:w-1/3 p-6 md:p-8 ${selectedCourse.color} relative overflow-hidden flex flex-col justify-between text-white shrink-0 h-auto md:h-full`}>
                  <div className="absolute inset-0 bg-black/10" />
                  <div className="relative z-10 space-y-6">
                     <div className="inline-block px-3 py-1 rounded-lg bg-white/20 backdrop-blur-md text-xs font-black uppercase tracking-widest">
                       {selectedCourse.code}
                     </div>
                     <div>
-                      <h2 className="text-4xl md:text-5xl font-black leading-[0.9] tracking-tight mb-2">{selectedCourse.name}</h2>
+                      <h2 className="text-3xl md:text-5xl font-black leading-[0.9] tracking-tight mb-2">{selectedCourse.name}</h2>
                       <p className="text-sm font-medium opacity-80 uppercase tracking-widest">{selectedCourse.pillar} Pillar</p>
                     </div>
                  </div>
@@ -576,8 +589,8 @@ const AcademicsPage: React.FC<AcademicsPageProps> = ({ isDarkMode, theme }) => {
                  </button>
               </div>
 
-              <div className={`flex-1 p-8 overflow-y-auto custom-scrollbar ${isDarkMode ? 'bg-[#0f172a]' : 'bg-[#f8fafc]'}`}>
-                 <div className="space-y-12 max-w-2xl mx-auto">
+              <div className={`flex-1 p-6 md:p-8 overflow-y-auto custom-scrollbar ${isDarkMode ? 'bg-[#0f172a]' : 'bg-[#f8fafc]'}`}>
+                 <div className="space-y-12 max-w-2xl mx-auto pb-12">
                     <ExamSection course={selectedCourse} />
                     <hr className="border-black/5 dark:border-white/5" />
                     <ResourceSection course={selectedCourse} />

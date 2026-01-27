@@ -44,12 +44,15 @@ export interface Course {
 }
 
 export interface Task {
-  id: number;
+  id: number | string;
   text: string;
   done: boolean;
+  priority?: 'high' | 'normal'; 
   pillar?: PillarType;
   isAI?: boolean;
   aiReason?: string;
+  order?: number;
+  createdAt?: number;
 }
 
 export interface CalendarEvent {

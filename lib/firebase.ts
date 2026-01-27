@@ -1,3 +1,4 @@
+
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -14,6 +15,8 @@ import {
   setDoc, 
   updateDoc, 
   addDoc,
+  deleteDoc,
+  writeBatch,
   collection, 
   query, 
   getDocs,
@@ -72,6 +75,8 @@ export {
   setDoc, 
   updateDoc, 
   addDoc,
+  deleteDoc,
+  writeBatch,
   collection, 
   query, 
   getDocs,
